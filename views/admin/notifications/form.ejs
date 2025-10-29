@@ -1,6 +1,7 @@
 <h1><%= action === 'create' ? 'Créer une notification' : 'Modifier la notification' %></h1>
 <form method="post" action="<%= action === 'create' ? '/admin/notifications/creer' : ('/admin/notifications/' + notification.id + '/modifier') %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="row_version" value="<%= (notification.row_version || 0) %>">
   <p>
     <label>Utilisateur</label>
     <select name="utilisateur_id">

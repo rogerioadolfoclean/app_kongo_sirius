@@ -1,6 +1,7 @@
 <h1><%= action === 'create' ? 'Créer une progression' : 'Modifier la progression' %></h1>
 <form method="post" action="<%= action === 'create' ? '/admin/progressions/creer' : ('/admin/progressions/' + progression.id + '/modifier') %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="row_version" value="<%= (progression.row_version || 0) %>">
   <p>
     <label>Utilisateur</label>
     <select name="utilisateur_id" required>

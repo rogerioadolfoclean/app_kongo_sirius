@@ -25,9 +25,74 @@ async function getApplied(conn) {
 
 async function applyMigration(conn, sql, filename) {
   console.log('Applying', filename);
-  // run each statement; use conn.query which can accept multiple statements if enabled
-  // We'll run the whole file as one query; migration files should have safe statements.
-  await conn.query(sql);
+  // Migration files may include vendor-specific convenience like
+  // "ALTER TABLE ... ADD COLUMN IF NOT EXISTS ..." which older MySQL
+  // servers don't support. Detect those patterns and perform a safe
+  // conditional ALTER via INFORMATION_SCHEMA checks, then run the
+  // remaining SQL. This keeps migrations idempotent across MySQL
+  // versions.
+  //
+  // Extract and process any "ADD COLUMN IF NOT EXISTS" statements.
+  const addColumnRegex = /ALTER\s+TABLE\s+`?([\w_]+)`?\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+`?([\w_]+)`?\s+([^;]+);/ig;
+  let match;
+  const toRemove = [];
+  while ((match = addColumnRegex.exec(sql)) !== null) {
+    const table = match[1];
+    const column = match[2];
+    const definition = match[3].trim();
+    // Check if column exists
+    const [rows] = await conn.execute(
+      `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [conn.config.database, table, column]
+    );
+    if (rows && rows[0] && rows[0].cnt === 0) {
+      // Perform the ALTER TABLE to add the column
+      const alterSql = `ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`;
+      console.log('Applying conditional alter:', alterSql);
+      await conn.query(alterSql);
+    } else {
+      console.log(`Skipping existing column ${table}.${column}`);
+    }
+    // mark this snippet for removal from the main SQL string
+    toRemove.push(match[0]);
+  }
+
+  // Remove processed ADD COLUMN IF NOT EXISTS statements from the SQL
+  let remainingSql = sql;
+  for (const snippet of toRemove) {
+    remainingSql = remainingSql.replace(snippet, '');
+  }
+
+  // Handle CREATE INDEX IF NOT EXISTS ...; some MySQL versions don't support
+  // the IF NOT EXISTS clause on CREATE INDEX. Detect those statements and
+  // create the index only when it doesn't already exist.
+  const createIndexRegex = /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+`?([\w_]+)`?\s+ON\s+`?([\w_]+)`?\s*\(([^;]+?)\)\s*;/ig;
+  let idxMatch;
+  const indexSnippets = [];
+  while ((idxMatch = createIndexRegex.exec(remainingSql)) !== null) {
+    const indexName = idxMatch[1];
+    const tableName = idxMatch[2];
+    const columns = idxMatch[3];
+    // Check INFORMATION_SCHEMA.STATISTICS for existing index
+    const [idxRows] = await conn.execute(
+      `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+      [conn.config.database, tableName, indexName]
+    );
+    if (idxRows && idxRows[0] && idxRows[0].cnt === 0) {
+      const createSql = `CREATE INDEX \`${indexName}\` ON \`${tableName}\` (${columns})`;
+      console.log('Creating index:', createSql);
+      await conn.query(createSql);
+    } else {
+      console.log(`Skipping existing index ${tableName}.${indexName}`);
+    }
+    indexSnippets.push(idxMatch[0]);
+  }
+  for (const s of indexSnippets) remainingSql = remainingSql.replace(s, '');
+
+  // Run any remaining SQL statements (if non-empty after trimming)
+  if (remainingSql.trim()) {
+    await conn.query(remainingSql);
+  }
   await conn.execute('INSERT INTO migrations__applied (filename) VALUES (?)', [filename]);
 }
 

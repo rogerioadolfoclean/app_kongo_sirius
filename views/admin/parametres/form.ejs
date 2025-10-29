@@ -2,6 +2,7 @@
 <h1><%= action === 'create' ? 'Créer un paramètre' : 'Modifier le paramètre' %></h1>
 <form method="post" action="<%= action === 'create' ? '/admin/parametres/creer' : ('/admin/parametres/' + parametre.id + '/modifier') %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="row_version" value="<%= (parametre.row_version || 0) %>">
   <div>
     <label>Clé:</label>
     <input name="cle_parametre" value="<%= parametre.cle_parametre || '' %>">

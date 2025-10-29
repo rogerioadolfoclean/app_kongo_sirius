@@ -2,6 +2,64 @@ name: CI
 
 on:
   push:
+    branches: [ master, hardening/2025-security ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: congo_knowledge_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -P 3306 --silent && break || sleep 2;
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests (migrations + suite)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: congo_knowledge_db
+          TEST_ADMIN_PASSWORD: password
+          NODE_ENV: test
+        run: npm run test:ci
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mocha-output
+          path: test-results || .
+name: CI
+
+on:
+  push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
@@ -11,21 +69,19 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: mysql:8.0
+        # fallback to MariaDB in CI to avoid transient MySQL container init failures on GH runners
+        # MariaDB is generally compatible for test setups; switch is reversible if dialect issues appear
+        image: mariadb:10.11
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
           MYSQL_DATABASE: congo_knowledge_db
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+        # don't bind container ports to the host (can fail on GH runners if port in use)
+        # services are reachable via localhost without explicit host-port mapping
+        # NOTE: removed custom `options:` healthcheck to avoid Actions service init parsing
+        # issues; the workflow uses an authenticated client poll step to wait for DB readiness.
       redis:
         image: redis:7
-        ports:
-          - 6379:6379
+        # no host port mapping required for Redis service
 
     steps:
       - uses: actions/checkout@v4
@@ -38,14 +94,41 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Wait for MySQL
+      - name: Wait for MySQL (install client & poll)
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
-          for i in {1..20}; do
-            if mysqladmin ping -h"127.0.0.1" --silent; then
-              echo "mysql ready"; break
+          set -euo pipefail
+          echo "Installing mysql client..."
+          sudo apt-get update -y && sudo apt-get install -y default-mysql-client
+          echo "mysql client installed:"; mysql --version || true
+          echo "mysqladmin version (if available):"; mysqladmin version || true
+          echo "Polling for mysql readiness... (up to 120 attempts)"
+          # Increase attempts to allow slower runners/containers to initialize
+          for i in $(seq 1 120); do
+            if mysqladmin ping -h"127.0.0.1" -uroot -p"${DB_PASSWORD}" --silent; then
+              echo "mysql ready"; exit 0
             fi
-            echo "waiting for mysql..."; sleep 2
+            echo "waiting for mysql... ($i)"; sleep 2
           done
+          echo "MySQL did not become ready in time"; exit 1
+
+      - name: Diagnose DB connectivity (debug)
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          echo "--- Diagnose DB connectivity: $(date -u) ---"
+          echo "which mysql:"; which mysql || true
+          echo "mysql --version:"; mysql --version || true
+          echo "mysqladmin version:"; mysqladmin version || true
+          # Print presence/length of the DB_PASSWORD secret without revealing it
+          echo "DB_PASSWORD length: ${#DB_PASSWORD}"
+          echo "attempting quick query against DB (SELECT 1):"
+          if mysql -h127.0.0.1 -uroot -p"${DB_PASSWORD}" -e "SELECT 1;" ; then
+            echo "mysql query succeeded"
+          else
+            echo "mysql query failed with exit $?"; exit 1
+          fi
 
       - name: Initialize database
         env:

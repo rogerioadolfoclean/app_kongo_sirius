@@ -1,6 +1,7 @@
 <h1><%= action === 'create' ? 'Créer une inscription' : 'Modifier l\'inscription' %></h1>
 <form method="post" action="<%= action === 'create' ? '/admin/inscriptions/creer' : ('/admin/inscriptions/' + inscription.id + '/modifier') %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="row_version" value="<%= (inscription.row_version || 0) %>">
   <p>
     <label>Utilisateur</label>
     <select name="utilisateur_id">
