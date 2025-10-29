@@ -52,6 +52,18 @@ jobs:
           done
           echo "MySQL did not become ready in time"; exit 1
 
+      - name: Diagnose DB connectivity (debug)
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          echo "--- Diagnose DB connectivity: $(date -u) ---"
+          echo "which mysql:"; which mysql || true
+          echo "mysql --version:"; mysql --version || true
+          echo "attempting quick query against DB (SELECT 1):"
+          mysql -h127.0.0.1 -uroot -p"${DB_PASSWORD}" -e "SELECT 1;" || {
+            echo "mysql query failed with exit $?"; exit 1
+          }
+
       - name: Initialize database
         env:
           DB_HOST: 127.0.0.1
