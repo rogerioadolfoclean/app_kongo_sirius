@@ -11,8 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        # pin to a specific minor tag to avoid transient issues with the floating '8.0' tag
-        image: mysql:8.0.33
+        # fallback to MariaDB in CI to avoid transient MySQL container init failures on GH runners
+        # MariaDB is generally compatible for test setups; switch is reversible if dialect issues appear
+        image: mariadb:10.11
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
           MYSQL_DATABASE: congo_knowledge_db
