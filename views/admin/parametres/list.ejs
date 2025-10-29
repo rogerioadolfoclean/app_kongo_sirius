@@ -1,0 +1,25 @@
+<%- include('../_header') %>
+<h1>Paramètres système</h1>
+<p><a href="/admin/parametres/creer">Créer un paramètre</a></p>
+<table>
+  <thead>
+    <tr><th>Clé</th><th>Valeur</th><th>Description</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% parametres.forEach(function(p) { %>
+      <tr>
+        <td><%= p.cle_parametre %></td>
+        <td><%= p.valeur_parametre %></td>
+        <td><%= p.description %></td>
+        <td>
+          <a href="/admin/parametres/<%= p.id %>/modifier">Modifier</a>
+          <form action="/admin/parametres/<%= p.id %>/supprimer" method="post" style="display:inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../_footer') %>

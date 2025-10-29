@@ -1,0 +1,32 @@
+<h1><%= action === 'create' ? 'Créer une notification' : 'Modifier la notification' %></h1>
+<form method="post" action="<%= action === 'create' ? '/admin/notifications/creer' : ('/admin/notifications/' + notification.id + '/modifier') %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p>
+    <label>Utilisateur</label>
+    <select name="utilisateur_id">
+      <option value="">-- Tous / Aucun --</option>
+      <% users.forEach(function(u){ %>
+        <option value="<%= u.id %>" <%= (notification.utilisateur_id == u.id) ? 'selected' : '' %>><%= u.nom_utilisateur %></option>
+      <% }) %>
+    </select>
+  </p>
+  <p>
+    <label>Titre</label>
+    <input name="titre" value="<%= notification.titre || '' %>" required>
+  </p>
+  <p>
+    <label>Message</label>
+    <textarea name="message" required><%= notification.message || '' %></textarea>
+  </p>
+  <p>
+    <label>Type</label>
+    <select name="type">
+      <option value="info" <%= (notification.type === 'info') ? 'selected' : '' %>>info</option>
+      <option value="succès" <%= (notification.type === 'succès') ? 'selected' : '' %>>succès</option>
+      <option value="avertissement" <%= (notification.type === 'avertissement') ? 'selected' : '' %>>avertissement</option>
+      <option value="erreur" <%= (notification.type === 'erreur') ? 'selected' : '' %>>erreur</option>
+    </select>
+  </p>
+  <p><button type="submit">Créer</button></p>
+</form>
+<p><a href="/admin/notifications">Retour à la liste</a></p>

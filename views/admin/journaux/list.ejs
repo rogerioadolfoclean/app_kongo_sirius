@@ -1,0 +1,20 @@
+<%- include('../_header') %>
+<h1>Journaux système</h1>
+<table>
+  <thead>
+    <tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Table</th><th>ID</th><th>Détails</th></tr>
+  </thead>
+  <tbody>
+    <% journaux.forEach(function(j) { %>
+      <tr>
+        <td><%= j.date_creation %></td>
+        <td><%= j.nom_utilisateur || 'Système' %></td>
+        <td><%= j.action %></td>
+        <td><%= j.nom_table %></td>
+        <td><%= j.id_enregistrement %></td>
+        <td><%= j.nouvelles_valeurs || j.anciennes_valeurs %></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../_footer') %>

@@ -1,0 +1,33 @@
+<h1><%= action === 'create' ? 'Créer une étape' : 'Modifier l\'étape' %></h1>
+<form method="post" action="<%= action === 'create' ? '/admin/etapes/creer' : ('/admin/etapes/' + etape.id + '/modifier') %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p>
+    <label>Numéro d'étape</label>
+    <input name="numero_etape" value="<%= etape.numero_etape || '' %>" required>
+  </p>
+  <p>
+    <label>Titre</label>
+    <input name="titre" value="<%= etape.titre || '' %>" required>
+  </p>
+  <p>
+    <label>Description</label>
+    <textarea name="description"><%= etape.description || '' %></textarea>
+  </p>
+  <p>
+    <label>Groupe</label>
+    <input name="nom_groupe" value="<%= etape.nom_groupe || '' %>">
+  </p>
+  <p>
+    <label>Durée (jours)</label>
+    <input type="number" name="duree_jours" value="<%= etape.duree_jours || 30 %>">
+  </p>
+  <p>
+    <label>Statut</label>
+    <select name="statut">
+      <option value="actif" <%= (etape.statut === 'actif') ? 'selected' : '' %>>actif</option>
+      <option value="inactif" <%= (etape.statut === 'inactif') ? 'selected' : '' %>>inactif</option>
+    </select>
+  </p>
+  <p><button type="submit"><%= action === 'create' ? 'Créer' : 'Enregistrer' %></button></p>
+</form>
+<p><a href="/admin/etapes">Retour à la liste</a></p>

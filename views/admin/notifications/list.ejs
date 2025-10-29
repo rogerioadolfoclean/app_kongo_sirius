@@ -1,0 +1,32 @@
+<h1>Notifications</h1>
+<p><a href="/admin/notifications/creer">Créer une notification</a></p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Utilisateur</th><th>Titre</th><th>Message</th><th>Type</th><th>Lu</th><th>Date</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% notifications.forEach(function(n){ %>
+      <tr>
+        <td><%= n.id %></td>
+        <td><%= n.nom_utilisateur || '—' %></td>
+        <td><%= n.titre %></td>
+        <td><%= n.message %></td>
+        <td><%= n.type %></td>
+        <td><%= n.est_lu ? 'oui' : 'non' %></td>
+        <td><%= n.date_creation %></td>
+        <td>
+          <% if (!n.est_lu) { %>
+            <form method="post" action="/admin/notifications/<%= n.id %>/mark-read" style="display:inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit">Marquer lu</button>
+            </form>
+          <% } %>
+          <form method="post" action="/admin/notifications/<%= n.id %>/supprimer" style="display:inline" onsubmit="return confirm('Supprimer cette notification ?');">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>

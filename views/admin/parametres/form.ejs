@@ -1,0 +1,19 @@
+<%- include('../_header') %>
+<h1><%= action === 'create' ? 'Créer un paramètre' : 'Modifier le paramètre' %></h1>
+<form method="post" action="<%= action === 'create' ? '/admin/parametres/creer' : ('/admin/parametres/' + parametre.id + '/modifier') %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div>
+    <label>Clé:</label>
+    <input name="cle_parametre" value="<%= parametre.cle_parametre || '' %>">
+  </div>
+  <div>
+    <label>Valeur:</label>
+    <input name="valeur_parametre" value="<%= parametre.valeur_parametre || '' %>">
+  </div>
+  <div>
+    <label>Description:</label>
+    <textarea name="description"><%= parametre.description || '' %></textarea>
+  </div>
+  <button type="submit">Enregistrer</button>
+</form>
+<%- include('../_footer') %>

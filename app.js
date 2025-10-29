@@ -447,13 +447,26 @@ app.post('/admin/utilisateurs/:id/modifier', requiertAdministrateur, csrfProtect
     const id = parseInt(req.params.id, 10);
     const { nom_utilisateur, email, role, statut, mot_de_passe } = req.body;
     const connexion = await pool.getConnection();
+
+    // Build a dynamic UPDATE that only touches provided fields to avoid lost-update races
+    const sets = [];
+    const params = [];
+    if (typeof nom_utilisateur !== 'undefined' && nom_utilisateur !== '') { sets.push('nom_utilisateur = ?'); params.push(nom_utilisateur); }
+    if (typeof email !== 'undefined' && email !== '') { sets.push('email = ?'); params.push(email); }
+    if (typeof role !== 'undefined' && role !== '') { sets.push('role = ?'); params.push(role); }
+    if (typeof statut !== 'undefined' && statut !== '') { sets.push('statut = ?'); params.push(statut); }
     if (mot_de_passe && mot_de_passe.trim().length > 0) {
       const motDePasseHache = await bcrypt.hash(mot_de_passe, 10);
-      await connexion.execute('UPDATE utilisateurs SET nom_utilisateur = ?, email = ?, role = ?, statut = ?, mot_de_passe = ? WHERE id = ?', [nom_utilisateur, email, role, statut, motDePasseHache, id]);
-    } else {
-      await connexion.execute('UPDATE utilisateurs SET nom_utilisateur = ?, email = ?, role = ?, statut = ? WHERE id = ?', [nom_utilisateur, email, role, statut, id]);
+      sets.push('mot_de_passe = ?'); params.push(motDePasseHache);
     }
-    await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [id, 'UTILISATEUR_ADMIN_MODIFIE', 'utilisateurs', req.ip]);
+
+    if (sets.length > 0) {
+      const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ?`;
+      params.push(id);
+      await connexion.execute(sql, params);
+      await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [id, 'UTILISATEUR_ADMIN_MODIFIE', 'utilisateurs', req.ip]);
+    }
+
     await connexion.release();
     res.redirect('/admin/utilisateurs');
   } catch (err) {
@@ -474,6 +487,453 @@ app.post('/admin/utilisateurs/:id/supprimer', requiertAdministrateur, csrfProtec
   } catch (err) {
     console.error('Erreur delete utilisateur:', err);
     res.status(500).render('erreur', { erreur: 'Erreur suppression utilisateur', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Admin CRUD - Étapes du programme
+app.get('/admin/etapes', requiertAdministrateur, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [etapes] = await connexion.execute('SELECT * FROM etapes_programme ORDER BY numero_etape');
+    await connexion.release();
+    res.render('admin/etapes/list', { utilisateur: req.session.utilisateur, etapes, csrfToken: req.csrfToken ? req.csrfToken() : null });
+  } catch (err) {
+    console.error('Erreur etapes list:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/etapes/creer', requiertAdministrateur, csrfProtection, (req, res) => {
+  res.render('admin/etapes/form', { utilisateur: req.session.utilisateur, action: 'create', etape: {}, csrfToken: req.csrfToken() });
+});
+
+app.post('/admin/etapes/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const { numero_etape, titre, description, nom_groupe, duree_jours, statut } = req.body;
+    const connexion = await pool.getConnection();
+    const [result] = await connexion.execute('INSERT INTO etapes_programme (numero_etape, titre, description, nom_groupe, duree_jours, statut, cree_par) VALUES (?, ?, ?, ?, ?, ?, ?)', [numero_etape, titre, description, nom_groupe, duree_jours || 30, statut || 'actif', req.session.utilisateur ? req.session.utilisateur.id : null]);
+    await connexion.release();
+    res.redirect('/admin/etapes');
+  } catch (err) {
+    console.error('Erreur creating etape:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur création étape', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/etapes/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    const [rows] = await connexion.execute('SELECT * FROM etapes_programme WHERE id = ?', [id]);
+    await connexion.release();
+    if (rows.length === 0) return res.status(404).render('erreur', { erreur: 'Étape non trouvée', utilisateur: req.session.utilisateur });
+    res.render('admin/etapes/form', { utilisateur: req.session.utilisateur, action: 'edit', etape: rows[0], csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur get etape:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/etapes/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { numero_etape, titre, description, nom_groupe, duree_jours, statut } = req.body;
+    const connexion = await pool.getConnection();
+
+    const sets = [];
+    const params = [];
+    if (typeof numero_etape !== 'undefined' && numero_etape !== '') { sets.push('numero_etape = ?'); params.push(numero_etape); }
+    if (typeof titre !== 'undefined' && titre !== '') { sets.push('titre = ?'); params.push(titre); }
+    if (typeof description !== 'undefined' && description !== '') { sets.push('description = ?'); params.push(description); }
+    if (typeof nom_groupe !== 'undefined' && nom_groupe !== '') { sets.push('nom_groupe = ?'); params.push(nom_groupe); }
+    if (typeof duree_jours !== 'undefined' && duree_jours !== '') { sets.push('duree_jours = ?'); params.push(duree_jours); }
+    if (typeof statut !== 'undefined' && statut !== '') { sets.push('statut = ?'); params.push(statut); }
+
+    if (sets.length > 0) {
+      const sql = `UPDATE etapes_programme SET ${sets.join(', ')} WHERE id = ?`;
+      params.push(id);
+      await connexion.execute(sql, params);
+    }
+
+    await connexion.release();
+    res.redirect('/admin/etapes');
+  } catch (err) {
+    console.error('Erreur update etape:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur mise à jour étape', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/etapes/:id/supprimer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    await connexion.execute('DELETE FROM etapes_programme WHERE id = ?', [id]);
+    await connexion.release();
+    res.redirect('/admin/etapes');
+  } catch (err) {
+    console.error('Erreur delete etape:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur suppression étape', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Admin CRUD - Inscriptions (registrations/payments)
+app.get('/admin/inscriptions', requiertAdministrateur, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [inscriptions] = await connexion.execute('SELECT i.*, u.nom_utilisateur FROM inscriptions i LEFT JOIN utilisateurs u ON i.utilisateur_id = u.id ORDER BY i.date_inscription DESC');
+    await connexion.release();
+    res.render('admin/inscriptions/list', { utilisateur: req.session.utilisateur, inscriptions, csrfToken: req.csrfToken ? req.csrfToken() : null });
+  } catch (err) {
+    console.error('Erreur inscriptions list:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/inscriptions/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [users] = await connexion.execute('SELECT id, nom_utilisateur FROM utilisateurs ORDER BY id DESC');
+    await connexion.release();
+    res.render('admin/inscriptions/form', { utilisateur: req.session.utilisateur, action: 'create', inscription: {}, users, csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur inscriptions create form:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/inscriptions/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const { utilisateur_id, montant, devise, statut_paiement, methode_paiement, id_transaction } = req.body;
+    const connexion = await pool.getConnection();
+    await connexion.execute('INSERT INTO inscriptions (utilisateur_id, montant, devise, statut_paiement, methode_paiement, id_transaction) VALUES (?, ?, ?, ?, ?, ?)', [utilisateur_id || null, montant || 0, devise || 'USD', statut_paiement || 'en_attente', methode_paiement || null, id_transaction || null]);
+    await connexion.release();
+    res.redirect('/admin/inscriptions');
+  } catch (err) {
+    console.error('Erreur creating inscription:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur création inscription', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/inscriptions/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    const [rows] = await connexion.execute('SELECT * FROM inscriptions WHERE id = ?', [id]);
+    const [users] = await connexion.execute('SELECT id, nom_utilisateur FROM utilisateurs ORDER BY id DESC');
+    await connexion.release();
+    if (rows.length === 0) return res.status(404).render('erreur', { erreur: 'Inscription non trouvée', utilisateur: req.session.utilisateur });
+    res.render('admin/inscriptions/form', { utilisateur: req.session.utilisateur, action: 'edit', inscription: rows[0], users, csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur get inscription:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/inscriptions/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { utilisateur_id, montant, devise, statut_paiement, methode_paiement, id_transaction } = req.body;
+    const connexion = await pool.getConnection();
+
+    const sets = [];
+    const params = [];
+    if (typeof utilisateur_id !== 'undefined' && utilisateur_id !== '') { sets.push('utilisateur_id = ?'); params.push(utilisateur_id); }
+    if (typeof montant !== 'undefined' && montant !== '') { sets.push('montant = ?'); params.push(montant); }
+    if (typeof devise !== 'undefined' && devise !== '') { sets.push('devise = ?'); params.push(devise); }
+    if (typeof statut_paiement !== 'undefined' && statut_paiement !== '') { sets.push('statut_paiement = ?'); params.push(statut_paiement); }
+    if (typeof methode_paiement !== 'undefined' && methode_paiement !== '') { sets.push('methode_paiement = ?'); params.push(methode_paiement); }
+    if (typeof id_transaction !== 'undefined' && id_transaction !== '') { sets.push('id_transaction = ?'); params.push(id_transaction); }
+
+    if (sets.length > 0) {
+      const sql = `UPDATE inscriptions SET ${sets.join(', ')} WHERE id = ?`;
+      params.push(id);
+      await connexion.execute(sql, params);
+    }
+
+    await connexion.release();
+    res.redirect('/admin/inscriptions');
+  } catch (err) {
+    console.error('Erreur update inscription:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur mise à jour inscription', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/inscriptions/:id/supprimer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    await connexion.execute('DELETE FROM inscriptions WHERE id = ?', [id]);
+    await connexion.release();
+    res.redirect('/admin/inscriptions');
+  } catch (err) {
+    console.error('Erreur delete inscription:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur suppression inscription', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Admin CRUD - Notifications
+app.get('/admin/notifications', requiertAdministrateur, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [notifs] = await connexion.execute('SELECT n.*, u.nom_utilisateur FROM notifications n LEFT JOIN utilisateurs u ON n.utilisateur_id = u.id ORDER BY n.date_creation DESC LIMIT 200');
+    await connexion.release();
+    res.render('admin/notifications/list', { utilisateur: req.session.utilisateur, notifications: notifs, csrfToken: req.csrfToken ? req.csrfToken() : null });
+  } catch (err) {
+    console.error('Erreur notifications list:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/notifications/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [users] = await connexion.execute('SELECT id, nom_utilisateur FROM utilisateurs ORDER BY id DESC');
+    await connexion.release();
+    res.render('admin/notifications/form', { utilisateur: req.session.utilisateur, action: 'create', notification: {}, users, csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur notifications create form:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/notifications/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const { utilisateur_id, titre, message, type } = req.body;
+    const connexion = await pool.getConnection();
+    await connexion.execute('INSERT INTO notifications (utilisateur_id, titre, message, type) VALUES (?, ?, ?, ?)', [utilisateur_id || null, titre || '', message || '', type || 'info']);
+    await connexion.release();
+    res.redirect('/admin/notifications');
+  } catch (err) {
+    console.error('Erreur creating notification:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur création notification', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/notifications/:id/mark-read', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    await connexion.execute('UPDATE notifications SET est_lu = TRUE WHERE id = ?', [id]);
+    await connexion.release();
+    res.redirect('/admin/notifications');
+  } catch (err) {
+    console.error('Erreur mark-read notification:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/notifications/:id/supprimer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    await connexion.execute('DELETE FROM notifications WHERE id = ?', [id]);
+    await connexion.release();
+    res.redirect('/admin/notifications');
+  } catch (err) {
+    console.error('Erreur delete notification:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur suppression notification', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Admin CRUD - Progression des étudiants (progression_etudiants)
+app.get('/admin/progressions', requiertAdministrateur, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [progs] = await connexion.execute(`
+      SELECT p.*, u.nom_utilisateur, ep.titre as etape_titre, ep.numero_etape
+      FROM progression_etudiants p
+      LEFT JOIN utilisateurs u ON p.utilisateur_id = u.id
+      LEFT JOIN etapes_programme ep ON p.etape_id = ep.id
+      ORDER BY p.date_creation DESC LIMIT 200
+    `);
+    await connexion.release();
+    res.render('admin/progressions/list', { utilisateur: req.session.utilisateur, progressions: progs, csrfToken: req.csrfToken ? req.csrfToken() : null });
+  } catch (err) {
+    console.error('Erreur progressions list:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/progressions/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [users] = await connexion.execute('SELECT id, nom_utilisateur FROM utilisateurs ORDER BY id DESC');
+    const [etapes] = await connexion.execute('SELECT id, numero_etape, titre FROM etapes_programme WHERE statut = "actif" ORDER BY numero_etape');
+    await connexion.release();
+    res.render('admin/progressions/form', { utilisateur: req.session.utilisateur, action: 'create', progression: {}, users, etapes, csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur progressions create form:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/progressions/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const { utilisateur_id, etape_id, statut, date_debut, date_completion, note } = req.body;
+    const connexion = await pool.getConnection();
+    await connexion.execute('INSERT INTO progression_etudiants (utilisateur_id, etape_id, statut, date_debut, date_completion, note) VALUES (?, ?, ?, ?, ?, ?)', [utilisateur_id || null, etape_id || null, statut || 'en_cours', date_debut || null, date_completion || null, note || null]);
+    await connexion.release();
+    res.redirect('/admin/progressions');
+  } catch (err) {
+    console.error('Erreur creating progression:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur création progression', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/progressions/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    const [rows] = await connexion.execute('SELECT * FROM progression_etudiants WHERE id = ?', [id]);
+    const [users] = await connexion.execute('SELECT id, nom_utilisateur FROM utilisateurs ORDER BY id DESC');
+    const [etapes] = await connexion.execute('SELECT id, numero_etape, titre FROM etapes_programme WHERE statut = "actif" ORDER BY numero_etape');
+    await connexion.release();
+    if (rows.length === 0) return res.status(404).render('erreur', { erreur: 'Progression non trouvée', utilisateur: req.session.utilisateur });
+    res.render('admin/progressions/form', { utilisateur: req.session.utilisateur, action: 'edit', progression: rows[0], users, etapes, csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur get progression:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/progressions/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { utilisateur_id, etape_id, statut, date_debut, date_completion, note } = req.body;
+    const connexion = await pool.getConnection();
+
+    const sets = [];
+    const params = [];
+    if (typeof utilisateur_id !== 'undefined' && utilisateur_id !== '') { sets.push('utilisateur_id = ?'); params.push(utilisateur_id); }
+    if (typeof etape_id !== 'undefined' && etape_id !== '') { sets.push('etape_id = ?'); params.push(etape_id); }
+    if (typeof statut !== 'undefined' && statut !== '') { sets.push('statut = ?'); params.push(statut); }
+    if (typeof date_debut !== 'undefined' && date_debut !== '') { sets.push('date_debut = ?'); params.push(date_debut); }
+    if (typeof date_completion !== 'undefined' && date_completion !== '') { sets.push('date_completion = ?'); params.push(date_completion); }
+    if (typeof note !== 'undefined' && note !== '') { sets.push('note = ?'); params.push(note); }
+
+    if (sets.length > 0) {
+      const sql = `UPDATE progression_etudiants SET ${sets.join(', ')} WHERE id = ?`;
+      params.push(id);
+      await connexion.execute(sql, params);
+    }
+
+    await connexion.release();
+    res.redirect('/admin/progressions');
+  } catch (err) {
+    console.error('Erreur update progression:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur mise à jour progression', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/progressions/:id/supprimer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    await connexion.execute('DELETE FROM progression_etudiants WHERE id = ?', [id]);
+    await connexion.release();
+    res.redirect('/admin/progressions');
+  } catch (err) {
+    console.error('Erreur delete progression:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur suppression progression', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Admin CRUD - Paramètres système
+app.get('/admin/parametres', requiertAdministrateur, async (req, res) => {
+  try {
+    const connexion = await pool.getConnection();
+    const [params] = await connexion.execute('SELECT * FROM parametres_systeme ORDER BY cle_parametre');
+    await connexion.release();
+    res.render('admin/parametres/list', { utilisateur: req.session.utilisateur, parametres: params, csrfToken: req.csrfToken ? req.csrfToken() : null });
+  } catch (err) {
+    console.error('Erreur parametres list:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/parametres/creer', requiertAdministrateur, csrfProtection, (req, res) => {
+  res.render('admin/parametres/form', { utilisateur: req.session.utilisateur, action: 'create', parametre: {}, csrfToken: req.csrfToken() });
+});
+
+app.post('/admin/parametres/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const { cle_parametre, valeur_parametre, description } = req.body;
+    const connexion = await pool.getConnection();
+    await connexion.execute('INSERT INTO parametres_systeme (cle_parametre, valeur_parametre, description) VALUES (?, ?, ?)', [cle_parametre, valeur_parametre || '', description || '']);
+    await connexion.release();
+    res.redirect('/admin/parametres');
+  } catch (err) {
+    console.error('Erreur creating parametre:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur création paramètre', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.get('/admin/parametres/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    const [rows] = await connexion.execute('SELECT * FROM parametres_systeme WHERE id = ?', [id]);
+    await connexion.release();
+    if (rows.length === 0) return res.status(404).render('erreur', { erreur: 'Paramètre non trouvé', utilisateur: req.session.utilisateur });
+    res.render('admin/parametres/form', { utilisateur: req.session.utilisateur, action: 'edit', parametre: rows[0], csrfToken: req.csrfToken() });
+  } catch (err) {
+    console.error('Erreur get parametre:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/parametres/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { cle_parametre, valeur_parametre, description } = req.body;
+    const connexion = await pool.getConnection();
+
+    const sets = [];
+    const params = [];
+    if (typeof cle_parametre !== 'undefined' && cle_parametre !== '') { sets.push('cle_parametre = ?'); params.push(cle_parametre); }
+    if (typeof valeur_parametre !== 'undefined' && valeur_parametre !== '') { sets.push('valeur_parametre = ?'); params.push(valeur_parametre); }
+    if (typeof description !== 'undefined' && description !== '') { sets.push('description = ?'); params.push(description); }
+
+    if (sets.length > 0) {
+      const sql = `UPDATE parametres_systeme SET ${sets.join(', ')} WHERE id = ?`;
+      params.push(id);
+      await connexion.execute(sql, params);
+    }
+
+    await connexion.release();
+    res.redirect('/admin/parametres');
+  } catch (err) {
+    console.error('Erreur update parametre:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur mise à jour paramètre', utilisateur: req.session.utilisateur });
+  }
+});
+
+app.post('/admin/parametres/:id/supprimer', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    await connexion.execute('DELETE FROM parametres_systeme WHERE id = ?', [id]);
+    await connexion.release();
+    res.redirect('/admin/parametres');
+  } catch (err) {
+    console.error('Erreur delete parametre:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur suppression paramètre', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Admin viewer - Journaux système
+app.get('/admin/journaux', requiertAdministrateur, async (req, res) => {
+  try {
+    const limit = Math.max(1, parseInt(req.query.limit, 10) || 200);
+    const connexion = await pool.getConnection();
+    // Some MySQL servers/drivers don't accept LIMIT as a prepared parameter; interpolate safely after ensuring integer
+    const sql = `SELECT j.*, u.nom_utilisateur FROM journaux_systeme j LEFT JOIN utilisateurs u ON j.utilisateur_id = u.id ORDER BY j.date_creation DESC LIMIT ${limit}`;
+    const [logs] = await connexion.query(sql);
+    await connexion.release();
+    res.render('admin/journaux/list', { utilisateur: req.session.utilisateur, journaux: logs, csrfToken: req.csrfToken ? req.csrfToken() : null });
+  } catch (err) {
+    console.error('Erreur journaux list:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
   }
 });
 

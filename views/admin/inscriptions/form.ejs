@@ -1,0 +1,39 @@
+<h1><%= action === 'create' ? 'Créer une inscription' : 'Modifier l\'inscription' %></h1>
+<form method="post" action="<%= action === 'create' ? '/admin/inscriptions/creer' : ('/admin/inscriptions/' + inscription.id + '/modifier') %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p>
+    <label>Utilisateur</label>
+    <select name="utilisateur_id">
+      <option value="">-- Aucun --</option>
+      <% users.forEach(function(u){ %>
+        <option value="<%= u.id %>" <%= (inscription.utilisateur_id == u.id) ? 'selected' : '' %>><%= u.nom_utilisateur %></option>
+      <% }) %>
+    </select>
+  </p>
+  <p>
+    <label>Montant</label>
+    <input name="montant" value="<%= inscription.montant || 0 %>" required>
+  </p>
+  <p>
+    <label>Devise</label>
+    <input name="devise" value="<%= inscription.devise || 'USD' %>">
+  </p>
+  <p>
+    <label>Statut</label>
+    <select name="statut_paiement">
+      <option value="en_attente" <%= (inscription.statut_paiement === 'en_attente') ? 'selected' : '' %>>en_attente</option>
+      <option value="payé" <%= (inscription.statut_paiement === 'payé') ? 'selected' : '' %>>payé</option>
+      <option value="échoué" <%= (inscription.statut_paiement === 'échoué') ? 'selected' : '' %>>échoué</option>
+    </select>
+  </p>
+  <p>
+    <label>Méthode paiement</label>
+    <input name="methode_paiement" value="<%= inscription.methode_paiement || '' %>">
+  </p>
+  <p>
+    <label>ID transaction</label>
+    <input name="id_transaction" value="<%= inscription.id_transaction || '' %>">
+  </p>
+  <p><button type="submit"><%= action === 'create' ? 'Créer' : 'Enregistrer' %></button></p>
+</form>
+<p><a href="/admin/inscriptions">Retour à la liste</a></p>

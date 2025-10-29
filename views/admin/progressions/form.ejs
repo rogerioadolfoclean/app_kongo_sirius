@@ -1,0 +1,45 @@
+<h1><%= action === 'create' ? 'Créer une progression' : 'Modifier la progression' %></h1>
+<form method="post" action="<%= action === 'create' ? '/admin/progressions/creer' : ('/admin/progressions/' + progression.id + '/modifier') %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <p>
+    <label>Utilisateur</label>
+    <select name="utilisateur_id" required>
+      <option value="">-- Sélectionner --</option>
+      <% users.forEach(function(u){ %>
+        <option value="<%= u.id %>" <%= (progression.utilisateur_id == u.id) ? 'selected' : '' %>><%= u.nom_utilisateur %></option>
+      <% }) %>
+    </select>
+  </p>
+  <p>
+    <label>Étape</label>
+    <select name="etape_id" required>
+      <option value="">-- Sélectionner --</option>
+      <% etapes.forEach(function(e){ %>
+        <option value="<%= e.id %>" <%= (progression.etape_id == e.id) ? 'selected' : '' %>><%= e.numero_etape %> - <%= e.titre %></option>
+      <% }) %>
+    </select>
+  </p>
+  <p>
+    <label>Statut</label>
+    <select name="statut">
+      <option value="non_commencé" <%= (progression.statut === 'non_commencé') ? 'selected' : '' %>>non_commencé</option>
+      <option value="en_cours" <%= (progression.statut === 'en_cours') ? 'selected' : '' %>>en_cours</option>
+      <option value="terminé" <%= (progression.statut === 'terminé') ? 'selected' : '' %>>terminé</option>
+      <option value="échoué" <%= (progression.statut === 'échoué') ? 'selected' : '' %>>échoué</option>
+    </select>
+  </p>
+  <p>
+    <label>Date début</label>
+    <input type="datetime-local" name="date_debut" value="<%= progression.date_debut ? new Date(progression.date_debut).toISOString().slice(0,16) : '' %>">
+  </p>
+  <p>
+    <label>Date completion</label>
+    <input type="datetime-local" name="date_completion" value="<%= progression.date_completion ? new Date(progression.date_completion).toISOString().slice(0,16) : '' %>">
+  </p>
+  <p>
+    <label>Note</label>
+    <input name="note" value="<%= progression.note || '' %>">
+  </p>
+  <p><button type="submit"><%= action === 'create' ? 'Créer' : 'Enregistrer' %></button></p>
+</form>
+<p><a href="/admin/progressions">Retour à la liste</a></p>

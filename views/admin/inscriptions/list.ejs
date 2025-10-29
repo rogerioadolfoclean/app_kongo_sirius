@@ -1,0 +1,26 @@
+<h1>Gestion des inscriptions</h1>
+<p><a href="/admin/inscriptions/creer">Créer une inscription</a></p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Utilisateur</th><th>Montant</th><th>Devise</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% inscriptions.forEach(function(i){ %>
+      <tr>
+        <td><%= i.id %></td>
+        <td><%= i.nom_utilisateur || '—' %></td>
+        <td><%= i.montant %></td>
+        <td><%= i.devise %></td>
+        <td><%= i.statut_paiement %></td>
+        <td><%= i.date_inscription %></td>
+        <td>
+          <a href="/admin/inscriptions/<%= i.id %>/modifier">Modifier</a>
+          <form method="post" action="/admin/inscriptions/<%= i.id %>/supprimer" style="display:inline" onsubmit="return confirm('Supprimer cette inscription ?');">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>

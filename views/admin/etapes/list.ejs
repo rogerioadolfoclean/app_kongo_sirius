@@ -1,0 +1,26 @@
+<h1>Gestion des étapes du programme</h1>
+<p><a href="/admin/etapes/creer">Créer une nouvelle étape</a></p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Numero</th><th>Titre</th><th>Groupe</th><th>Durée(j)</th><th>Statut</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% etapes.forEach(function(e){ %>
+      <tr>
+        <td><%= e.id %></td>
+        <td><%= e.numero_etape %></td>
+        <td><%= e.titre %></td>
+        <td><%= e.nom_groupe %></td>
+        <td><%= e.duree_jours %></td>
+        <td><%= e.statut %></td>
+        <td>
+          <a href="/admin/etapes/<%= e.id %>/modifier">Modifier</a>
+          <form method="post" action="/admin/etapes/<%= e.id %>/supprimer" style="display:inline" onsubmit="return confirm('Supprimer cette étape ?');">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>

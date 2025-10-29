@@ -1,0 +1,27 @@
+<h1>Progressions des étudiants</h1>
+<p><a href="/admin/progressions/creer">Créer une progression</a></p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Utilisateur</th><th>Étape</th><th>Statut</th><th>Date début</th><th>Date completion</th><th>Note</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% progressions.forEach(function(p){ %>
+      <tr>
+        <td><%= p.id %></td>
+        <td><%= p.nom_utilisateur || '—' %></td>
+        <td><%= p.numero_etape ? (p.numero_etape + ' — ' + p.etape_titre) : '—' %></td>
+        <td><%= p.statut %></td>
+        <td><%= p.date_debut %></td>
+        <td><%= p.date_completion %></td>
+        <td><%= p.note %></td>
+        <td>
+          <a href="/admin/progressions/<%= p.id %>/modifier">Modifier</a>
+          <form method="post" action="/admin/progressions/<%= p.id %>/supprimer" style="display:inline" onsubmit="return confirm('Supprimer cette progression ?');">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
