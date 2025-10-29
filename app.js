@@ -461,9 +461,24 @@ app.post('/admin/utilisateurs/:id/modifier', requiertAdministrateur, csrfProtect
     }
 
     if (sets.length > 0) {
-      const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ?`;
-      params.push(id);
-      await connexion.execute(sql, params);
+      // optimistic locking: if client sent row_version, require it and increment on update
+      if (typeof req.body.row_version !== 'undefined') {
+        const rowVersion = parseInt(req.body.row_version, 10);
+        sets.push('row_version = row_version + 1');
+        const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
+        params.push(id);
+        params.push(rowVersion);
+        const [result] = await connexion.execute(sql, params);
+        if (!result || result.affectedRows === 0) {
+          await connexion.release();
+          return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
+        }
+      } else {
+        const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ?`;
+        params.push(id);
+        await connexion.execute(sql, params);
+      }
+
       await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [id, 'UTILISATEUR_ADMIN_MODIFIE', 'utilisateurs', req.ip]);
     }
 
@@ -550,9 +565,23 @@ app.post('/admin/etapes/:id/modifier', requiertAdministrateur, csrfProtection, a
     if (typeof statut !== 'undefined' && statut !== '') { sets.push('statut = ?'); params.push(statut); }
 
     if (sets.length > 0) {
-      const sql = `UPDATE etapes_programme SET ${sets.join(', ')} WHERE id = ?`;
-      params.push(id);
-      await connexion.execute(sql, params);
+      // optimistic locking: require row_version if provided
+      if (typeof req.body.row_version !== 'undefined') {
+        const rowVersion = parseInt(req.body.row_version, 10);
+        sets.push('row_version = row_version + 1');
+        const sql = `UPDATE etapes_programme SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
+        params.push(id);
+        params.push(rowVersion);
+        const [result] = await connexion.execute(sql, params);
+        if (!result || result.affectedRows === 0) {
+          await connexion.release();
+          return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
+        }
+      } else {
+        const sql = `UPDATE etapes_programme SET ${sets.join(', ')} WHERE id = ?`;
+        params.push(id);
+        await connexion.execute(sql, params);
+      }
     }
 
     await connexion.release();
@@ -645,9 +674,22 @@ app.post('/admin/inscriptions/:id/modifier', requiertAdministrateur, csrfProtect
     if (typeof id_transaction !== 'undefined' && id_transaction !== '') { sets.push('id_transaction = ?'); params.push(id_transaction); }
 
     if (sets.length > 0) {
-      const sql = `UPDATE inscriptions SET ${sets.join(', ')} WHERE id = ?`;
-      params.push(id);
-      await connexion.execute(sql, params);
+      if (typeof req.body.row_version !== 'undefined') {
+        const rowVersion = parseInt(req.body.row_version, 10);
+        sets.push('row_version = row_version + 1');
+        const sql = `UPDATE inscriptions SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
+        params.push(id);
+        params.push(rowVersion);
+        const [result] = await connexion.execute(sql, params);
+        if (!result || result.affectedRows === 0) {
+          await connexion.release();
+          return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
+        }
+      } else {
+        const sql = `UPDATE inscriptions SET ${sets.join(', ')} WHERE id = ?`;
+        params.push(id);
+        await connexion.execute(sql, params);
+      }
     }
 
     await connexion.release();
@@ -812,9 +854,22 @@ app.post('/admin/progressions/:id/modifier', requiertAdministrateur, csrfProtect
     if (typeof note !== 'undefined' && note !== '') { sets.push('note = ?'); params.push(note); }
 
     if (sets.length > 0) {
-      const sql = `UPDATE progression_etudiants SET ${sets.join(', ')} WHERE id = ?`;
-      params.push(id);
-      await connexion.execute(sql, params);
+      if (typeof req.body.row_version !== 'undefined') {
+        const rowVersion = parseInt(req.body.row_version, 10);
+        sets.push('row_version = row_version + 1');
+        const sql = `UPDATE progression_etudiants SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
+        params.push(id);
+        params.push(rowVersion);
+        const [result] = await connexion.execute(sql, params);
+        if (!result || result.affectedRows === 0) {
+          await connexion.release();
+          return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
+        }
+      } else {
+        const sql = `UPDATE progression_etudiants SET ${sets.join(', ')} WHERE id = ?`;
+        params.push(id);
+        await connexion.execute(sql, params);
+      }
     }
 
     await connexion.release();
@@ -895,9 +950,22 @@ app.post('/admin/parametres/:id/modifier', requiertAdministrateur, csrfProtectio
     if (typeof description !== 'undefined' && description !== '') { sets.push('description = ?'); params.push(description); }
 
     if (sets.length > 0) {
-      const sql = `UPDATE parametres_systeme SET ${sets.join(', ')} WHERE id = ?`;
-      params.push(id);
-      await connexion.execute(sql, params);
+      if (typeof req.body.row_version !== 'undefined') {
+        const rowVersion = parseInt(req.body.row_version, 10);
+        sets.push('row_version = row_version + 1');
+        const sql = `UPDATE parametres_systeme SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
+        params.push(id);
+        params.push(rowVersion);
+        const [result] = await connexion.execute(sql, params);
+        if (!result || result.affectedRows === 0) {
+          await connexion.release();
+          return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
+        }
+      } else {
+        const sql = `UPDATE parametres_systeme SET ${sets.join(', ')} WHERE id = ?`;
+        params.push(id);
+        await connexion.execute(sql, params);
+      }
     }
 
     await connexion.release();
