@@ -31,14 +31,27 @@ describe('Admin progression_etudiants CRUD', function() {
 
   let createdId;
   it('creates a progression for etape 1', async () => {
-    // ensure etape 1 exists and pick a user
-    const [[etape]] = await dbConn.query('SELECT id FROM etapes_programme WHERE numero_etape = 1 LIMIT 1');
+    // ensure at least one etape exists (create a minimal one if migrations/tests left DB empty)
+    let [[etape]] = await dbConn.query('SELECT id FROM etapes_programme WHERE numero_etape = 1 LIMIT 1');
+    if (!etape) {
+      const resEtapeForm = await agent.get('/admin/etapes/creer');
+      const csrfEt = extractCsrf(resEtapeForm.text);
+      await agent.post('/admin/etapes/creer').type('form').send({ numero_etape: 1, titre: 'AUTO_ETAPE', description: '', nom_groupe: '', duree_jours: 1, statut: 'actif', _csrf: csrfEt });
+      [[etape]] = await dbConn.query('SELECT id FROM etapes_programme WHERE numero_etape = 1 LIMIT 1');
+    }
+
     const [[user]] = await dbConn.query('SELECT id FROM utilisateurs WHERE nom_utilisateur = ? LIMIT 1', ['deep_test']);
     const userId = user ? user.id : (await dbConn.query('SELECT id FROM utilisateurs LIMIT 1'))[0][0].id;
-    const etapeId = etape ? etape.id : (await dbConn.query('SELECT id FROM etapes_programme LIMIT 1'))[0][0].id;
+    const etapeId = etape.id;
 
-    const resForm = await agent.get('/admin/progressions/creer');
-    if (resForm.status !== 200) throw new Error('Cannot fetch create progression form');
+    // fetch create form, retry a couple times if a transient server error occurred
+    let resForm;
+    for (let i = 0; i < 4; i++) {
+      resForm = await agent.get('/admin/progressions/creer');
+      if (resForm.status === 200) break;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (!resForm || resForm.status !== 200) throw new Error('Cannot fetch create progression form');
     const csrf = extractCsrf(resForm.text);
 
     // cleanup any existing progression for this user+etape (idempotent)
