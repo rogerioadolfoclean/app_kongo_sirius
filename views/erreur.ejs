@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erreur - Conscience Kongo</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .conteneur-erreur {
+            background: white;
+            padding: 3rem 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .icone-erreur {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .titre-erreur {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+        
+        .message-erreur {
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        
+        .bouton-retour {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 600;
+            transition: transform 0.3s;
+        }
+        
+        .bouton-retour:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="conteneur-erreur">
+        <div class="icone-erreur">⚠️</div>
+        <h1 class="titre-erreur">Oups!</h1>
+        <p class="message-erreur"><%= erreur %></p>
+        
+        <% if (utilisateur) { %>
+            <a href="/tableau-de-bord" class="bouton-retour">
+                Retour au tableau de bord
+            </a>
+        <% } else { %>
+            <a href="/connexion" class="bouton-retour">
+                Retour à la connexion
+            </a>
+        <% } %>
+    </div>
+</body>
+</html>

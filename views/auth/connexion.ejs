@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Conscience Kongo</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .conteneur-auth {
+            background: white;
+            padding: 3rem 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .logo-titre {
+            color: #2c3e50;
+            margin-bottom: 2rem;
+        }
+        
+        .logo-titre h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        
+        .logo-titre p {
+            margin: 0.5rem 0 0 0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .formulaire-groupe {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+        
+        .formulaire-groupe label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .formulaire-groupe input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        
+        .formulaire-groupe input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .bouton-primaire {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-bottom: 1rem;
+        }
+        
+        .bouton-primaire:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(52, 152, 219, 0.3);
+        }
+        
+        .alerte {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .alerte-erreur {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alerte-succes {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .liens-navigation {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+        
+        .liens-navigation a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .liens-navigation a:hover {
+            text-decoration: underline;
+        }
+        
+        .pied-page {
+            text-align: center;
+            margin-top: 2rem;
+            color: #7f8c8d;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="conteneur-auth">
+        <div class="logo-titre">
+            <h1>🌟 Conscience Kongo</h1>
+            <p>Plateforme de Formation Spirituelle</p>
+        </div>
+        
+        <% if (message) { %>
+            <div class="alerte <%= message.includes('réussie') ? 'alerte-succes' : 'alerte-erreur' %>">
+                <%= message %>
+            </div>
+        <% } %>
+        
+        <form method="POST" action="/connexion">
+            <div class="formulaire-groupe">
+                <label for="nom_utilisateur">Nom d'utilisateur</label>
+                <input type="text" id="nom_utilisateur" name="nom_utilisateur" required>
+            </div>
+            
+            <div class="formulaire-groupe">
+                <label for="mot_de_passe">Mot de passe</label>
+                <input type="password" id="mot_de_passe" name="mot_de_passe" required>
+            </div>
+            
+            <button type="submit" class="bouton-primaire">
+                Se connecter
+            </button>
+        </form>
+        
+        <div class="liens-navigation">
+            <p>Pas encore de compte ? <a href="/inscription">Créer un compte</a></p>
+        </div>
+        
+        <div class="pied-page">
+            <p>&copy; <%= anneeCourante %> Conscience Kongo - Tous droits réservés</p>
+        </div>
+    </div>
+</body>
+</html>

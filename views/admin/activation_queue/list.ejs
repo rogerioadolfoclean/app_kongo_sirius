@@ -1,0 +1,32 @@
+<%- include('../_header', { utilisateur: utilisateur }) %>
+<h1>Activation Queue</h1>
+<p>Liste des jobs d'activation (récent)</p>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Utilisateur</th><th>Etape source</th><th>Status</th><th>Tentatives</th><th>Créé</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% jobs.forEach(function(j){ %>
+      <tr>
+        <td><%= j.id %></td>
+        <td><%= j.utilisateur_id %></td>
+        <td><%= j.source_etape_id %></td>
+        <td><%= j.status %></td>
+        <td><%= j.tentatives %></td>
+        <td><%= j.date_creation %></td>
+        <td>
+          <form method="post" action="/admin/activation-queue/<%= j.id %>/retry" style="display:inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Retry</button>
+          </form>
+          <form method="post" action="/admin/activation-queue/<%= j.id %>/process" style="display:inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit">Process now</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+
+<%- include('../_footer') %>

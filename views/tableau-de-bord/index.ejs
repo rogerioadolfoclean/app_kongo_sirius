@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de Bord - Conscience Kongo</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            line-height: 1.6;
+        }
+        
+        .en-tete {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .conteneur {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        
+        .barre-navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .menu-utilisateur {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .menu-utilisateur a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .menu-utilisateur a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .contenu-principal {
+            padding: 2rem 0;
+        }
+        
+        .titre-page {
+            color: #2c3e50;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .grille-statistiques {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .carte-statistique {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .carte-statistique:hover {
+            transform: translateY(-5px);
+        }
+        
+        .icone-statistique {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .chiffre-statistique {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .etiquette-statistique {
+            color: #7f8c8d;
+            font-size: 1rem;
+        }
+        
+        .carte {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+        }
+        
+        .titre-carte {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 0.5rem;
+        }
+        
+        .progression-etape {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+            transition: background 0.3s;
+        }
+        
+        .progression-etape:hover {
+            background: #f8f9fa;
+        }
+        
+        .numero-etape {
+            background: #3498db;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+        
+        .numero-etape.termine {
+            background: #27ae60;
+        }
+        
+        .numero-etape.en-cours {
+            background: #f39c12;
+        }
+        
+        .info-etape {
+            flex: 1;
+        }
+        
+        .titre-etape {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .description-etape {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .statut-etape {
+            font-weight: bold;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+        
+        .statut-termine {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .statut-en-cours {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .statut-non-commence {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .notification {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .notification h4 {
+            margin: 0 0 0.5rem 0;
+            color: #0c5460;
+        }
+        
+        .notification p {
+            margin: 0;
+            color: #0c5460;
+        }
+        
+        .date-notification {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.5rem;
+        }
+        
+        .grille-deux-colonnes {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .barre-navigation {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .grille-statistiques {
+                grid-template-columns: 1fr;
+            }
+            
+            .grille-deux-colonnes {
+                grid-template-columns: 1fr;
+            }
+            
+            .progression-etape {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .numero-etape {
+                margin-right: 0;
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="en-tete">
+        <div class="conteneur">
+            <nav class="barre-navigation">
+                <div class="logo">🌟 Conscience Kongo</div>
+                <div class="menu-utilisateur">
+                    <span>Bienvenue, <strong><%= utilisateur.nom_utilisateur %></strong></span>
+                    <a href="/programme/etapes">📚 Programme</a>
+                    <a href="/deconnexion">🚪 Déconnexion</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="contenu-principal">
+        <div class="conteneur">
+            <h1 class="titre-page">📊 Tableau de Bord</h1>
+            
+            <!-- Statistiques -->
+            <div class="grille-statistiques">
+                <div class="carte-statistique">
+                    <div class="icone-statistique">📈</div>
+                    <div class="chiffre-statistique" style="color: #3498db;"><%= statistiques.total_etapes %></div>
+                    <div class="etiquette-statistique">Étapes Totales</div>
+                </div>
+                
+                <div class="carte-statistique">
+                    <div class="icone-statistique">✅</div>
+                    <div class="chiffre-statistique" style="color: #27ae60;"><%= statistiques.etapes_terminees || 0 %></div>
+                    <div class="etiquette-statistique">Étapes Terminées</div>
+                </div>
+                
+                <div class="carte-statistique">
+                    <div class="icone-statistique">⏳</div>
+                    <div class="chiffre-statistique" style="color: #f39c12;"><%= statistiques.etapes_en_cours || 0 %></div>
+                    <div class="etiquette-statistique">En Cours</div>
+                </div>
+                
+                <div class="carte-statistique">
+                    <div class="icone-statistique">📊</div>
+                    <div class="chiffre-statistique" style="color: #9b59b6;">
+                        <%= Math.round(((statistiques.etapes_terminees || 0) / statistiques.total_etapes) * 100) %>%
+                    </div>
+                    <div class="etiquette-statistique">Progression</div>
+                </div>
+            </div>
+            
+            <div class="grille-deux-colonnes">
+                <!-- Progression des Étapes -->
+                <div class="carte">
+                    <h2 class="titre-carte">🎯 Votre Progression</h2>
+                    <% progression.forEach(function(etape) { %>
+                        <div class="progression-etape">
+                            <div class="numero-etape <%= etape.statut || 'non-commence' %>">
+                                <%= etape.numero_etape %>
+                            </div>
+                            <div class="info-etape">
+                                <div class="titre-etape"><%= etape.titre %></div>
+                                <div class="description-etape"><%= etape.description || 'Aucune description' %></div>
+                                <div class="description-etape">
+                                    Groupe: <strong><%= etape.nom_groupe %></strong> | 
+                                    Durée: <strong><%= etape.duree_jours %> jours</strong>
+                                </div>
+                                <% if (etape.date_debut) { %>
+                                    <div class="description-etape">
+                                        Début: <%= moment(etape.date_debut).format('DD/MM/YYYY') %>
+                                    </div>
+                                <% } %>
+                                <% if (etape.date_completion) { %>
+                                    <div class="description-etape">
+                                        Terminé: <%= moment(etape.date_completion).format('DD/MM/YYYY') %>
+                                    </div>
+                                <% } %>
+                                <% if (etape.note) { %>
+                                    <div class="description-etape">
+                                        Note: <strong><%= etape.note %>/100</strong>
+                                    </div>
+                                <% } %>
+                            </div>
+                            <div class="statut-etape statut-<%= (etape.statut || 'non-commence').replace('é', 'e').replace('_', '-') %>">
+                                <%= etape.statut || 'Non commencé' %>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+                
+                <!-- Notifications -->
+                <div class="carte">
+                    <h2 class="titre-carte">🔔 Notifications</h2>
+                    <% if (notifications.length > 0) { %>
+                        <% notifications.forEach(function(notification) { %>
+                            <div class="notification">
+                                <h4><%= notification.titre %></h4>
+                                <p><%= notification.message %></p>
+                                <div class="date-notification">
+                                    <%= moment(notification.date_creation).format('DD/MM/YYYY HH:mm') %>
+                                </div>
+                            </div>
+                        <% }); %>
+                    <% } else { %>
+                        <div class="notification">
+                            <h4>Aucune notification</h4>
+                            <p>Vous n'avez pas de nouvelles notifications.</p>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

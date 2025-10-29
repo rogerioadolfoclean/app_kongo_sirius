@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Tableau de bord</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="header">
+    <h1>Tableau de bord administrateur</h1>
+    <p>Connecté en tant que: <strong><%= utilisateur ? utilisateur.nom_utilisateur : 'Invité' %></strong></p>
+    <nav>
+      <a href="/tableau-de-bord">Mon tableau</a> |
+      <a href="/programme/etapes">Étapes</a> |
+      <a href="/deconnexion">Déconnexion</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="stats">
+      <h2>Statistiques globales</h2>
+      <ul>
+        <li>Utilisateurs enregistrés: <strong><%= stats.total_utilisateurs %></strong></li>
+        <li>Inscriptions payées: <strong><%= stats.inscriptions_payees %></strong></li>
+        <li>Étapes terminées: <strong><%= stats.total_etapes_terminees %></strong></li>
+      </ul>
+    </section>
+
+    <section class="notes">
+      <h3>Notes</h3>
+      <p>Utilisez l'interface d'administration pour surveiller la file d'activation et les journaux système.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>&copy; <%= new Date().getFullYear() %> Congo Knowledge</small>
+  </footer>
+</body>
+</html>

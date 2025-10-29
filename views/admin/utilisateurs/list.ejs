@@ -1,0 +1,31 @@
+<%- include('../_header', { utilisateur: utilisateur }) %>
+<h1>Gestion des utilisateurs</h1>
+<p><a href="/admin/utilisateurs/creer">Créer un nouvel utilisateur</a></p>
+<form method="post" action="/admin/utilisateurs/creer" style="display:none">
+  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% } %>
+</form>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Nom</th><th>Email</th><th>Role</th><th>Statut</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    <% utilisateurs.forEach(function(u){ %>
+      <tr>
+        <td><%= u.id %></td>
+        <td><%= u.nom_utilisateur %></td>
+        <td><%= u.email %></td>
+        <td><%= u.role %></td>
+        <td><%= u.statut %></td>
+        <td>
+          <a href="/admin/utilisateurs/<%= u.id %>/modifier">Modifier</a>
+          <form method="post" action="/admin/utilisateurs/<%= u.id %>/supprimer" style="display:inline" onsubmit="return confirm('Supprimer cet utilisateur ?');">
+            <button type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../_footer') %>

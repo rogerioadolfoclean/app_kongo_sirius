@@ -1,0 +1,34 @@
+<%- include('../_header', { utilisateur: utilisateur }) %>
+<h1><%= action === 'create' ? 'Créer un utilisateur' : 'Modifier l\'utilisateur' %></h1>
+
+<form method="post" action="<%= action === 'create' ? '/admin/utilisateurs/creer' : ('/admin/utilisateurs/' + utilisateurData.id + '/modifier') %>">
+  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% } %>
+  <label>Nom utilisateur<br>
+    <input name="nom_utilisateur" required value="<%= utilisateurData.nom_utilisateur || '' %>">
+  </label><br>
+  <label>Email<br>
+    <input name="email" type="email" required value="<%= utilisateurData.email || '' %>">
+  </label><br>
+  <label>Rôle<br>
+    <select name="role">
+      <option value="étudiant" <%= (utilisateurData.role==='étudiant')? 'selected' : '' %>>Étudiant</option>
+      <option value="enseignant" <%= (utilisateurData.role==='enseignant')? 'selected' : '' %>>Enseignant</option>
+      <option value="administrateur" <%= (utilisateurData.role==='administrateur')? 'selected' : '' %>>Administrateur</option>
+    </select>
+  </label><br>
+  <label>Statut<br>
+    <select name="statut">
+      <option value="actif" <%= (utilisateurData.statut==='actif')? 'selected' : '' %>>Actif</option>
+      <option value="inactif" <%= (utilisateurData.statut==='inactif')? 'selected' : '' %>>Inactif</option>
+    </select>
+  </label><br>
+  <label>Mot de passe (<%= action==='edit' ? 'laisser vide pour ne pas changer' : 'requis' %>)<br>
+    <input name="mot_de_passe" type="password" <%= action==='create' ? 'required' : '' %> >
+  </label><br>
+  <button type="submit">Enregistrer</button>
+</form>
+
+<p><a href="/admin/utilisateurs">Retour à la liste</a></p>
+<%- include('../_footer') %>

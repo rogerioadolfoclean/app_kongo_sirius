@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — <%= utilisateur ? utilisateur.nom_utilisateur : 'Admin' %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="header">
+    <h1>Administration</h1>
+    <p>Connecté en tant que: <strong><%= utilisateur ? utilisateur.nom_utilisateur : 'Invité' %></strong></p>
+    <nav>
+      <a href="/admin/tableau-de-bord">Tableau</a> | <a href="/admin/utilisateurs">Utilisateurs</a> | <a href="/deconnexion">Déconnexion</a>
+    </nav>
+  </header>
+  <main class="container">
