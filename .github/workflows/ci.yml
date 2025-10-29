@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: mysql:8.0
+        # pin to a specific minor tag to avoid transient issues with the floating '8.0' tag
+        image: mysql:8.0.33
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
           MYSQL_DATABASE: congo_knowledge_db
