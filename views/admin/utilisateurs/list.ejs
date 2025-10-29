@@ -1,10 +1,23 @@
 <%- include('../_header', { utilisateur: utilisateur }) %>
 <h1>Gestion des utilisateurs</h1>
 <p><a href="/admin/utilisateurs/creer">Créer un nouvel utilisateur</a></p>
-<form method="post" action="/admin/utilisateurs/creer" style="display:none">
-  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-  <% } %>
+
+<!-- Search and export controls -->
+<form method="get" action="/admin/utilisateurs" style="margin-bottom:1em">
+  <label for="q">Rechercher</label>
+  <input id="q" name="q" type="search" value="<%= typeof q !== 'undefined' && q ? q : '' %>" placeholder="Nom ou email">
+  <label for="per_page">Par page</label>
+  <select id="per_page" name="per_page">
+    <option value="10" <%= perPage==10? 'selected' : '' %>>10</option>
+    <option value="25" <%= perPage==25? 'selected' : '' %>>25</option>
+    <option value="50" <%= perPage==50? 'selected' : '' %>>50</option>
+    <option value="100" <%= perPage==100? 'selected' : '' %>>100</option>
+  </select>
+  <button type="submit">Rechercher</button>
+  <!-- CSV / PDF / Print buttons -->
+  <a role="button" class="button" href="/admin/utilisateurs/export.csv<%= q ? ('?q=' + encodeURIComponent(q)) : '' %>">Export CSV</a>
+  <a role="button" class="button" href="/admin/utilisateurs/export.pdf<%= q ? ('?q=' + encodeURIComponent(q)) : '' %>">Export PDF</a>
+  <a role="button" class="button" href="#" onclick="window.print();return false;">Imprimer</a>
 </form>
 <table>
   <thead>
@@ -21,6 +34,9 @@
         <td>
           <a href="/admin/utilisateurs/<%= u.id %>/modifier">Modifier</a>
           <form method="post" action="/admin/utilisateurs/<%= u.id %>/supprimer" style="display:inline" onsubmit="return confirm('Supprimer cet utilisateur ?');">
+            <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <% } %>
             <button type="submit">Supprimer</button>
           </form>
         </td>
@@ -28,4 +44,22 @@
     <% }) %>
   </tbody>
 </table>
+
+<!-- Pagination -->
+<% if (typeof total !== 'undefined') { %>
+  <% const totalPages = Math.max(1, Math.ceil(total / perPage)); %>
+  <nav aria-label="Pagination">
+    <ul style="list-style:none;display:flex;gap:0.5rem;padding:0">
+      <% if (page > 1) { %>
+        <li><a href="/admin/utilisateurs?<%= q ? ('q=' + encodeURIComponent(q) + '&') : '' %>per_page=<%= perPage %>&page=<%= page-1 %>">« Précédent</a></li>
+      <% } %>
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <li><a href="/admin/utilisateurs?<%= q ? ('q=' + encodeURIComponent(q) + '&') : '' %>per_page=<%= perPage %>&page=<%= p %>" <%= p===page? 'aria-current="page"' : '' %>><%= p %></a></li>
+      <% } %>
+      <% if (page < totalPages) { %>
+        <li><a href="/admin/utilisateurs?<%= q ? ('q=' + encodeURIComponent(q) + '&') : '' %>per_page=<%= perPage %>&page=<%= page+1 %>">Suivant »</a></li>
+      <% } %>
+    </ul>
+  </nav>
+<% } %>
 <%- include('../_footer') %>

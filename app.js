@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
 const mysql = require('mysql2/promise');
+const mysqlCore = require('mysql2');
 const rateLimit = require('express-rate-limit');
 const { dbConfig: centralDbConfig, sessionSecret } = require('./lib/config');
 const path = require('path');
@@ -14,6 +15,16 @@ let redisClient;
 // Removed unused PDF and CSV writer imports to clean ESLint warnings
 const moment = require('moment');
 const { body, validationResult } = require('express-validator');
+
+// Helper: simple CSV escape
+function escapeCsv(value) {
+  if (value === null || typeof value === 'undefined') return '';
+  const s = String(value);
+  if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -118,8 +129,10 @@ app.get('/connexion', (req, res) => {
   });
 });
 
-// Rate limit login attempts per IP
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Trop de tentatives, réessayez plus tard.' });
+// Rate limit login attempts per IP. Increase limit in test environment to
+// avoid flakiness due to many programmatic login attempts from the test
+// suite. In production keep a strict limit.
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: (process.env.NODE_ENV === 'test' ? 1000 : 10), message: 'Trop de tentatives, réessayez plus tard.' });
 
 app.post('/connexion', loginLimiter, [
   body('nom_utilisateur').notEmpty().withMessage('Le nom d\'utilisateur est requis'),
@@ -397,12 +410,39 @@ app.get('/admin/tableau-de-bord', requiertAdministrateur, async (req, res) => {
 // Admin CRUD - Utilisateurs (minimal)
 app.get('/admin/utilisateurs', requiertAdministrateur, async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const perPage = Math.min(200, Math.max(1, parseInt(req.query.per_page, 10) || 50));
+    const q = req.query.q ? String(req.query.q).trim() : null;
+    const offset = (page - 1) * perPage;
+
     const connexion = await pool.getConnection();
-    const [utilisateurs] = await connexion.execute('SELECT id, nom_utilisateur, email, role, statut, date_creation FROM utilisateurs ORDER BY id DESC');
+    let utilisateurs = [];
+    let total = 0;
+
+    if (q) {
+      const like = `%${q}%`;
+      // Some MySQL servers do not accept LIMIT/OFFSET as prepared statement params.
+      const safeLimit = Math.max(1, Number(perPage));
+      const safeOffset = Math.max(0, Number(offset));
+      const sql = `SELECT id, nom_utilisateur, email, role, statut, date_creation FROM utilisateurs WHERE nom_utilisateur LIKE ? OR email LIKE ? ORDER BY id DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+      const [rows] = await connexion.execute(sql, [like, like]);
+      const [[countRow]] = await connexion.execute('SELECT COUNT(*) as cnt FROM utilisateurs WHERE nom_utilisateur LIKE ? OR email LIKE ?', [like, like]);
+      utilisateurs = rows;
+      total = countRow.cnt;
+    } else {
+      const safeLimit = Math.max(1, Number(perPage));
+      const safeOffset = Math.max(0, Number(offset));
+      const sql = `SELECT id, nom_utilisateur, email, role, statut, date_creation FROM utilisateurs ORDER BY id DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+      const [rows] = await connexion.execute(sql);
+      const [[countRow]] = await connexion.execute('SELECT COUNT(*) as cnt FROM utilisateurs');
+      utilisateurs = rows;
+      total = countRow.cnt;
+    }
+
     await connexion.release();
     // Provide CSRF token for forms
     const token = req.csrfToken ? req.csrfToken() : null;
-    res.render('admin/utilisateurs/list', { utilisateur: req.session.utilisateur, utilisateurs, csrfToken: token });
+    res.render('admin/utilisateurs/list', { utilisateur: req.session.utilisateur, utilisateurs, csrfToken: token, page, perPage, total, q });
   } catch (err) {
     console.error('Erreur admin utilisateurs list:', err);
     res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
@@ -413,20 +453,46 @@ app.get('/admin/utilisateurs/creer', requiertAdministrateur, csrfProtection, (re
   res.render('admin/utilisateurs/form', { utilisateur: req.session.utilisateur, action: 'create', utilisateurData: {}, csrfToken: req.csrfToken() });
 });
 
-app.post('/admin/utilisateurs/creer', requiertAdministrateur, csrfProtection, async (req, res) => {
-  try {
-    const { nom_utilisateur, email, mot_de_passe, role } = req.body;
-    const connexion = await pool.getConnection();
-    const motDePasseHache = await bcrypt.hash(mot_de_passe, 10);
-    const [result] = await connexion.execute('INSERT INTO utilisateurs (nom_utilisateur, email, mot_de_passe, role) VALUES (?, ?, ?, ?)', [nom_utilisateur, email, motDePasseHache, role || 'étudiant']);
-    await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [result.insertId, 'UTILISATEUR_ADMIN_CRÉE', 'utilisateurs', req.ip]);
-    await connexion.release();
-    res.redirect('/admin/utilisateurs');
-  } catch (err) {
-    console.error('Erreur creating user:', err);
-    res.status(500).render('erreur', { erreur: 'Erreur création utilisateur', utilisateur: req.session.utilisateur });
+app.post('/admin/utilisateurs/creer', requiertAdministrateur, csrfProtection,
+  [
+    body('nom_utilisateur').isLength({ min: 3 }).withMessage('Le nom d\'utilisateur doit contenir au moins 3 caractères'),
+    // Allow simple addresses used in tests like name@host as well as full RFC emails
+    body('email').custom((v) => {
+      if (!v) return false;
+      const simple = /^[^@\s]+@[^@\s]+$/;
+      if (simple.test(v)) return true;
+      // fallback: conservative check for @ and domain
+      throw new Error('Email invalide');
+    }),
+    body('mot_de_passe').isLength({ min: 6 }).withMessage('Le mot de passe doit contenir au moins 6 caractères'),
+    body('role').isIn(['étudiant', 'enseignant', 'administrateur']).withMessage('Rôle invalide')
+  ],
+  async (req, res) => {
+    const erreurs = validationResult(req);
+    if (!erreurs.isEmpty()) {
+      return res.status(400).render('admin/utilisateurs/form', {
+        utilisateur: req.session.utilisateur,
+        action: 'create',
+        utilisateurData: req.body,
+        csrfToken: req.csrfToken(),
+        message: erreurs.array()[0].msg
+      });
+    }
+
+    try {
+      const { nom_utilisateur, email, mot_de_passe, role } = req.body;
+      const connexion = await pool.getConnection();
+      const motDePasseHache = await bcrypt.hash(mot_de_passe, 10);
+      const [result] = await connexion.execute('INSERT INTO utilisateurs (nom_utilisateur, email, mot_de_passe, role) VALUES (?, ?, ?, ?)', [nom_utilisateur, email, motDePasseHache, role || 'étudiant']);
+      await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [result.insertId, 'UTILISATEUR_ADMIN_CRÉE', 'utilisateurs', req.ip]);
+      await connexion.release();
+      res.redirect('/admin/utilisateurs');
+    } catch (err) {
+      console.error('Erreur creating user:', err);
+      res.status(500).render('erreur', { erreur: 'Erreur création utilisateur', utilisateur: req.session.utilisateur });
+    }
   }
-});
+);
 
 app.get('/admin/utilisateurs/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
   try {
@@ -442,53 +508,89 @@ app.get('/admin/utilisateurs/:id/modifier', requiertAdministrateur, csrfProtecti
   }
 });
 
-app.post('/admin/utilisateurs/:id/modifier', requiertAdministrateur, csrfProtection, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    const { nom_utilisateur, email, role, statut, mot_de_passe } = req.body;
-    const connexion = await pool.getConnection();
-
-    // Build a dynamic UPDATE that only touches provided fields to avoid lost-update races
-    const sets = [];
-    const params = [];
-    if (typeof nom_utilisateur !== 'undefined' && nom_utilisateur !== '') { sets.push('nom_utilisateur = ?'); params.push(nom_utilisateur); }
-    if (typeof email !== 'undefined' && email !== '') { sets.push('email = ?'); params.push(email); }
-    if (typeof role !== 'undefined' && role !== '') { sets.push('role = ?'); params.push(role); }
-    if (typeof statut !== 'undefined' && statut !== '') { sets.push('statut = ?'); params.push(statut); }
-    if (mot_de_passe && mot_de_passe.trim().length > 0) {
-      const motDePasseHache = await bcrypt.hash(mot_de_passe, 10);
-      sets.push('mot_de_passe = ?'); params.push(motDePasseHache);
+app.post('/admin/utilisateurs/:id/modifier', requiertAdministrateur, csrfProtection,
+  [
+    body('nom_utilisateur').optional({ checkFalsy: true }).isLength({ min: 3 }).withMessage('Le nom d\'utilisateur doit contenir au moins 3 caractères'),
+    body('email').optional({ checkFalsy: true }).custom((v) => {
+      if (!v) return true;
+      const simple = /^[^@\s]+@[^@\s]+$/;
+      if (simple.test(v)) return true;
+      throw new Error('Email invalide');
+    }),
+    body('role').optional({ checkFalsy: true }).isIn(['étudiant', 'enseignant', 'administrateur']).withMessage('Rôle invalide'),
+    body('statut').optional({ checkFalsy: true }).isIn(['actif', 'inactif']).withMessage('Statut invalide'),
+    body('mot_de_passe').optional({ checkFalsy: true }).isLength({ min: 6 }).withMessage('Le mot de passe doit contenir au moins 6 caractères')
+  ],
+  async (req, res) => {
+    const erreurs = validationResult(req);
+    if (!erreurs.isEmpty()) {
+      // Re-render the edit form with the first validation message
+      const id = parseInt(req.params.id, 10);
+      try {
+        const connexion = await pool.getConnection();
+        const [rows] = await connexion.execute('SELECT id, nom_utilisateur, email, role, statut, row_version FROM utilisateurs WHERE id = ?', [id]);
+        await connexion.release();
+        const utilisateurData = rows && rows.length ? rows[0] : { id };
+        return res.status(400).render('admin/utilisateurs/form', {
+          utilisateur: req.session.utilisateur,
+          action: 'edit',
+          utilisateurData,
+          csrfToken: req.csrfToken(),
+          message: erreurs.array()[0].msg
+        });
+      } catch (err) {
+        console.error('Erreur retrieving utilisateur for validation error:', err);
+        return res.status(500).render('erreur', { erreur: 'Erreur serveur', utilisateur: req.session.utilisateur });
+      }
     }
 
-    if (sets.length > 0) {
-      // optimistic locking: if client sent row_version, require it and increment on update
-      if (typeof req.body.row_version !== 'undefined') {
-        const rowVersion = parseInt(req.body.row_version, 10);
-        sets.push('row_version = row_version + 1');
-        const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
-        params.push(id);
-        params.push(rowVersion);
-        const [result] = await connexion.execute(sql, params);
-        if (!result || result.affectedRows === 0) {
-          await connexion.release();
-          return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
-        }
-      } else {
-        const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ?`;
-        params.push(id);
-        await connexion.execute(sql, params);
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { nom_utilisateur, email, role, statut, mot_de_passe } = req.body;
+      const connexion = await pool.getConnection();
+
+      // Build a dynamic UPDATE that only touches provided fields to avoid lost-update races
+      const sets = [];
+      const params = [];
+      if (typeof nom_utilisateur !== 'undefined' && nom_utilisateur !== '') { sets.push('nom_utilisateur = ?'); params.push(nom_utilisateur); }
+      if (typeof email !== 'undefined' && email !== '') { sets.push('email = ?'); params.push(email); }
+      if (typeof role !== 'undefined' && role !== '') { sets.push('role = ?'); params.push(role); }
+      if (typeof statut !== 'undefined' && statut !== '') { sets.push('statut = ?'); params.push(statut); }
+      if (mot_de_passe && mot_de_passe.trim().length > 0) {
+        const motDePasseHache = await bcrypt.hash(mot_de_passe, 10);
+        sets.push('mot_de_passe = ?'); params.push(motDePasseHache);
       }
 
-      await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [id, 'UTILISATEUR_ADMIN_MODIFIE', 'utilisateurs', req.ip]);
-    }
+      if (sets.length > 0) {
+        // optimistic locking: if client sent row_version, require it and increment on update
+        if (typeof req.body.row_version !== 'undefined') {
+          const rowVersion = parseInt(req.body.row_version, 10);
+          sets.push('row_version = row_version + 1');
+          const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ? AND row_version = ?`;
+          params.push(id);
+          params.push(rowVersion);
+          const [result] = await connexion.execute(sql, params);
+          if (!result || result.affectedRows === 0) {
+            await connexion.release();
+            return res.status(409).render('erreur', { erreur: 'Conflit de mise à jour. Veuillez recharger et réessayer.', utilisateur: req.session.utilisateur });
+          }
+        } else {
+          const sql = `UPDATE utilisateurs SET ${sets.join(', ')} WHERE id = ?`;
+          params.push(id);
+          await connexion.execute(sql, params);
+        }
 
-    await connexion.release();
-    res.redirect('/admin/utilisateurs');
-  } catch (err) {
-    console.error('Erreur update utilisateur:', err);
-    res.status(500).render('erreur', { erreur: 'Erreur mise à jour utilisateur', utilisateur: req.session.utilisateur });
+        await connexion.execute('INSERT INTO journaux_systeme (utilisateur_id, action, nom_table, adresse_ip) VALUES (?, ?, ?, ?)', [id, 'UTILISATEUR_ADMIN_MODIFIE', 'utilisateurs', req.ip]);
+      }
+
+      await connexion.release();
+      res.redirect('/admin/utilisateurs');
+    } catch (err) {
+      console.error('Erreur update utilisateur:', err);
+      res.status(500).render('erreur', { erreur: 'Erreur mise à jour utilisateur', utilisateur: req.session.utilisateur });
+    }
   }
-});
+);
 
 app.post('/admin/utilisateurs/:id/supprimer', requiertAdministrateur, csrfProtection, async (req, res) => {
   try {
@@ -502,6 +604,190 @@ app.post('/admin/utilisateurs/:id/supprimer', requiertAdministrateur, csrfProtec
   } catch (err) {
     console.error('Erreur delete utilisateur:', err);
     res.status(500).render('erreur', { erreur: 'Erreur suppression utilisateur', utilisateur: req.session.utilisateur });
+  }
+});
+
+// CSV export for utilisateurs (supports optional q search query)
+app.get('/admin/utilisateurs/export.csv', requiertAdministrateur, async (req, res) => {
+  try {
+    const q = req.query.q ? String(req.query.q).trim() : null;
+    // Stream results to avoid loading everything into memory for large tables.
+    const sqlBase = 'SELECT id, nom_utilisateur, email, role, statut, date_creation FROM utilisateurs';
+    let sql = sqlBase;
+    const params = [];
+    if (q) {
+      sql += ' WHERE nom_utilisateur LIKE ? OR email LIKE ?';
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    sql += ' ORDER BY id DESC';
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="utilisateurs.csv"');
+    // write header
+    res.write('id,nom_utilisateur,email,role,statut,date_creation\n');
+
+    // Use mysql2 core connection to stream rows
+    const streamConn = mysqlCore.createConnection({
+      host: dbConfig.host,
+      user: dbConfig.user,
+      password: dbConfig.password,
+      database: dbConfig.database,
+      charset: dbConfig.charset
+    });
+
+    const query = streamConn.query(sql, params);
+    const qstream = query.stream({ highWaterMark: 5 });
+    qstream.on('data', (row) => {
+      const line = [
+        row.id,
+        escapeCsv(row.nom_utilisateur),
+        escapeCsv(row.email),
+        escapeCsv(row.role),
+        escapeCsv(row.statut),
+        escapeCsv(row.date_creation)
+      ].join(',') + '\n';
+      // If client disconnected, stop streaming
+      try { res.write(line); } catch (e) { qstream.destroy(); }
+    });
+    qstream.on('end', () => {
+      res.end();
+      streamConn.end();
+    });
+    qstream.on('error', (err) => {
+      console.error('CSV stream error:', err);
+      try { res.end(); } catch (e) {}
+      streamConn.end();
+    });
+  } catch (err) {
+    console.error('Erreur export utilisateurs CSV:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur export CSV', utilisateur: req.session.utilisateur });
+  }
+});
+
+// PDF export for utilisateurs (small, synchronous PDF for moderate result sets)
+app.get('/admin/utilisateurs/export.pdf', requiertAdministrateur, async (req, res) => {
+  try {
+    const q = req.query.q ? String(req.query.q).trim() : null;
+    let sql = 'SELECT id, nom_utilisateur, email, role, statut, date_creation FROM utilisateurs';
+    const params = [];
+    if (q) {
+      sql += ' WHERE nom_utilisateur LIKE ? OR email LIKE ?';
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    sql += ' ORDER BY id DESC LIMIT 500';
+
+    const connexion = await pool.getConnection();
+    const [rows] = await connexion.execute(sql, params);
+    await connexion.release();
+
+    const PDFDocument = require('pdfkit');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="utilisateurs.pdf"');
+
+    const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+    doc.pipe(res);
+
+    // layout settings
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const colWidths = {
+      id: 40,
+      nom: 140,
+      email: 180,
+      role: 80,
+      statut: 60,
+      created: pageWidth - (40 + 140 + 180 + 80 + 60)
+    };
+
+    function drawHeader() {
+      doc.fontSize(12).font('Helvetica-Bold');
+      doc.text('ID', { continued: true, width: colWidths.id });
+      doc.text('Nom', { continued: true, width: colWidths.nom });
+      doc.text('Email', { continued: true, width: colWidths.email });
+      doc.text('Role', { continued: true, width: colWidths.role });
+      doc.text('Statut', { continued: true, width: colWidths.statut });
+      doc.text('Créé', { width: colWidths.created });
+      doc.moveDown(0.25);
+      doc.font('Helvetica').fontSize(10);
+    }
+
+    // Title
+    doc.fontSize(18).font('Helvetica-Bold').text('Liste des utilisateurs', { align: 'center' });
+    doc.moveDown(0.5);
+
+    // Initial header
+    drawHeader();
+
+    // Ensure headers repeat on new pages
+    doc.on('pageAdded', () => {
+      drawHeader();
+    });
+
+    // Print rows with wrapping and page breaks handled
+    for (const u of rows) {
+      const created = u.date_creation ? new Date(u.date_creation).toISOString().slice(0,19).replace('T',' ') : '';
+
+      // Estimate height for the tallest cell using doc.heightOfString
+      const colHeights = [];
+      colHeights.push(doc.heightOfString(String(u.id || ''), { width: colWidths.id }));
+      colHeights.push(doc.heightOfString(String(u.nom_utilisateur || ''), { width: colWidths.nom }));
+      colHeights.push(doc.heightOfString(String(u.email || ''), { width: colWidths.email }));
+      colHeights.push(doc.heightOfString(String(u.role || ''), { width: colWidths.role }));
+      colHeights.push(doc.heightOfString(String(u.statut || ''), { width: colWidths.statut }));
+      colHeights.push(doc.heightOfString(String(created), { width: colWidths.created }));
+      const rowHeight = Math.max(...colHeights) + 4;
+
+      // Add new page if not enough space
+      if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+      }
+
+      // Draw each cell
+      doc.text(String(u.id || ''), { continued: true, width: colWidths.id });
+      doc.text(String(u.nom_utilisateur || ''), { continued: true, width: colWidths.nom });
+      doc.text(String(u.email || ''), { continued: true, width: colWidths.email });
+      doc.text(String(u.role || ''), { continued: true, width: colWidths.role });
+      doc.text(String(u.statut || ''), { continued: true, width: colWidths.statut });
+      doc.text(created, { width: colWidths.created });
+      doc.moveDown(0.2);
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error('Erreur export utilisateurs PDF:', err);
+    res.status(500).render('erreur', { erreur: 'Erreur export PDF', utilisateur: req.session.utilisateur });
+  }
+});
+
+// Enqueue async export job
+app.post('/admin/utilisateurs/export-async', requiertAdministrateur, csrfProtection, async (req, res) => {
+  try {
+    const q = req.body.q ? String(req.body.q).trim() : null;
+    const connexion = await pool.getConnection();
+    const [result] = await connexion.execute('INSERT INTO export_jobs (status, q, params) VALUES (?, ?, ?)', ['pending', q, JSON.stringify({ requested_by: req.session.utilisateur ? req.session.utilisateur.id : null })]);
+    await connexion.release();
+    res.json({ jobId: result.insertId, status: 'pending', statusUrl: `/admin/utilisateurs/export-job/${result.insertId}` });
+  } catch (err) {
+    console.error('Erreur enqueue export job:', err);
+    res.status(500).json({ error: 'Erreur enqueue export job' });
+  }
+});
+
+// Check job status and download when done
+app.get('/admin/utilisateurs/export-job/:id', requiertAdministrateur, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const connexion = await pool.getConnection();
+    const [rows] = await connexion.execute('SELECT * FROM export_jobs WHERE id = ?', [id]);
+    await connexion.release();
+    if (!rows || rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+    const job = rows[0];
+    if (job.status === 'done' && job.file_path) {
+      return res.download(job.file_path);
+    }
+    res.json({ id: job.id, status: job.status, message: job.result_message || null });
+  } catch (err) {
+    console.error('Erreur checking export job:', err);
+    res.status(500).json({ error: 'Erreur checking export job' });
   }
 });
 
@@ -1105,14 +1391,17 @@ app.use((req, res) => {
   });
 });
 
-// Démarrer le serveur
+// Démarrer le serveur only when running this file directly. This allows tests to
+// import the app without starting the HTTP listener (avoids EADDRINUSE in tests).
 // Startup safety checks are handled by lib/env_safety.js (required by scripts)
-app.listen(port, () => {
-  console.log(`🚀 Serveur démarré sur le port ${port}`);
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`📱 Accédez à l'application: http://localhost:${port}`);
-    console.log(`� For local testing: set TEST_ADMIN_PASSWORD in your .env if you need to override the default test admin password.`);
-  }
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`🚀 Serveur démarré sur le port ${port}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📱 Accédez à l'application: http://localhost:${port}`);
+      console.log(`� For local testing: set TEST_ADMIN_PASSWORD in your .env if you need to override the default test admin password.`);
+    }
+  });
+}
 
 module.exports = app;

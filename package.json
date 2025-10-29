@@ -7,7 +7,8 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "worker": "node scripts/process_queue.js",
-    "test": "mocha tests --exit",
+  "test": "cross-env NODE_ENV=test mocha tests --exit",
+  "test:ci": "node scripts/test_bootstrap.js && npm test",
     "lint": "eslint --ext .js ."
   },
   "keywords": [
@@ -39,6 +40,7 @@
     "eslint": "^8.43.0",
     "mocha": "^11.7.4",
     "nodemon": "^3.0.1",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "cross-env": "^7.0.3"
   }
 }
