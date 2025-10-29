@@ -511,8 +511,8 @@ app.post('/admin/etapes/creer', requiertAdministrateur, csrfProtection, async (r
   try {
     const { numero_etape, titre, description, nom_groupe, duree_jours, statut } = req.body;
     const connexion = await pool.getConnection();
-    const [result] = await connexion.execute('INSERT INTO etapes_programme (numero_etape, titre, description, nom_groupe, duree_jours, statut, cree_par) VALUES (?, ?, ?, ?, ?, ?, ?)', [numero_etape, titre, description, nom_groupe, duree_jours || 30, statut || 'actif', req.session.utilisateur ? req.session.utilisateur.id : null]);
-    await connexion.release();
+  await connexion.execute('INSERT INTO etapes_programme (numero_etape, titre, description, nom_groupe, duree_jours, statut, cree_par) VALUES (?, ?, ?, ?, ?, ?, ?)', [numero_etape, titre, description, nom_groupe, duree_jours || 30, statut || 'actif', req.session.utilisateur ? req.session.utilisateur.id : null]);
+  await connexion.release();
     res.redirect('/admin/etapes');
   } catch (err) {
     console.error('Erreur creating etape:', err);
