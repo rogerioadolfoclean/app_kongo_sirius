@@ -937,6 +937,20 @@ app.get('/admin/journaux', requiertAdministrateur, async (req, res) => {
   }
 });
 
+// Health check endpoint for orchestration / load balancers
+app.get('/health', async (req, res) => {
+  try {
+    // simple DB check
+    const connexion = await pool.getConnection();
+    await connexion.execute('SELECT 1');
+    await connexion.release();
+    res.status(200).json({ status: 'ok' });
+  } catch (err) {
+    console.error('Healthcheck DB error:', err && err.message ? err.message : err);
+    res.status(500).json({ status: 'error', message: 'db' });
+  }
+});
+
 // Admin activation_queue UI
 app.get('/admin/activation-queue', requiertAdministrateur, async (req, res) => {
   try {
