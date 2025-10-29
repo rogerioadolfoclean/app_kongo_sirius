@@ -5,6 +5,7 @@
   <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   <% } %>
+  <input type="hidden" name="row_version" value="<%= (utilisateurData.row_version || 0) %>">
   <label>Nom utilisateur<br>
     <input name="nom_utilisateur" required value="<%= utilisateurData.nom_utilisateur || '' %>">
   </label><br>

@@ -1,6 +1,7 @@
 <h1><%= action === 'create' ? 'Créer une étape' : 'Modifier l\'étape' %></h1>
 <form method="post" action="<%= action === 'create' ? '/admin/etapes/creer' : ('/admin/etapes/' + etape.id + '/modifier') %>">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="row_version" value="<%= (etape.row_version || 0) %>">
   <p>
     <label>Numéro d'étape</label>
     <input name="numero_etape" value="<%= etape.numero_etape || '' %>" required>
