@@ -15,17 +15,16 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
           MYSQL_DATABASE: congo_knowledge_db
-        ports:
-          - 3306:3306
+        # don't bind container ports to the host (can fail on GH runners if port in use)
+        # services are reachable via localhost without explicit host-port mapping
         options: >-
           --health-cmd="mysqladmin ping --silent"
           --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+          --health-timeout=10s
+          --health-retries=15
       redis:
         image: redis:7
-        ports:
-          - 6379:6379
+        # no host port mapping required for Redis service
 
     steps:
       - uses: actions/checkout@v4
